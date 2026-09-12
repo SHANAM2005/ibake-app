@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Admin Login — iBake</title>
+<link rel="stylesheet" href="/css/styles.css">
+<style>
+  .login-wrap{ max-width: 380px; margin: 90px auto; padding: 0 6vw; }
+  .login-card{ background: var(--white); border-radius:18px; border:1px solid var(--line); padding: 32px; }
+  .login-card h2{ font-family:'Playfair Display', serif; margin-bottom: 20px; text-align:center; }
+</style>
+</head>
+<body>
+
+<nav><div class="logo">i<span>Bake</span> Admin</div></nav>
+
+<div class="login-wrap">
+  <div class="login-card">
+    <h2>Admin Login</h2>
+    <form id="loginForm">
+      <div class="field">
+        <label>Username</label>
+        <input type="text" id="username" required>
+      </div>
+      <div class="field">
+        <label>Password</label>
+        <input type="password" id="password" required>
+      </div>
+      <button type="submit" class="btn btn-pay">Log In</button>
+      <div class="error-msg" id="errorMsg"></div>
+    </form>
+  </div>
+</div>
+
+<script>
+  document.getElementById('loginForm').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const errorMsg = document.getElementById('errorMsg');
+    errorMsg.style.display = 'none';
+    const res = await fetch('/api/admin/login', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        username: document.getElementById('username').value,
+        password: document.getElementById('password').value
+      })
+    });
+    const data = await res.json();
+    if (res.ok) {
+      window.location.href = '/admin/dashboard';
+    } else {
+      errorMsg.textContent = data.error || 'Login failed';
+      errorMsg.style.display = 'block';
+    }
+  });
+</script>
+</body>
+</html>

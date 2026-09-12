@@ -1,0 +1,121 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Admin Dashboard — iBake</title>
+<link rel="stylesheet" href="/css/styles.css">
+<style>
+  .admin-tabs{ display:flex; gap:8px; max-width:1100px; margin: 24px auto 0; padding: 0 6vw; }
+  .admin-tabs button{ background: var(--white); border:1.5px solid var(--line); padding: 10px 22px; border-radius:100px; font-weight:600; font-size:13.5px; color: var(--ink-soft); }
+  .admin-tabs button.active{ background: var(--ink); color: var(--cream); border-color: var(--ink); }
+  .admin-panel{ max-width:1100px; margin: 0 auto; padding: 24px 6vw 90px; display:none; }
+  .admin-panel.active{ display:block; }
+
+  .panel-head{ display:flex; justify-content:space-between; align-items:center; margin-bottom:20px; flex-wrap:wrap; gap:12px; }
+  .panel-head h2{ font-family:'Playfair Display', serif; font-size:24px; }
+
+  table{ width:100%; border-collapse:collapse; background:var(--white); border-radius:14px; overflow:hidden; border:1px solid var(--line); }
+  th, td{ padding: 12px 14px; text-align:left; font-size:13.5px; border-bottom:1px solid var(--line); }
+  th{ background: var(--cream-deep); font-weight:700; }
+  tr:last-child td{ border-bottom:none; }
+  .thumb-sm{ width:44px; height:44px; border-radius:8px; object-fit:cover; }
+  .badge{ padding:4px 10px; border-radius:100px; font-size:11.5px; font-weight:700; }
+  .badge-pending{ background:#fdecd0; color:#9c6b0a; }
+  .badge-confirmed{ background:#dceafd; color:#1a5aa8; }
+  .badge-fulfilled{ background:#dff3e2; color:#237a3c; }
+  .badge-cancelled{ background:#fbdcdc; color:#a32020; }
+  select.status-select{ padding:6px 10px; border-radius:8px; border:1px solid var(--line); font-size:12.5px; }
+  .icon-btn{ background:none; border:none; font-size:14px; color: var(--pink-deep); font-weight:700; }
+  .icon-btn.edit{ color: var(--mustard-deep); margin-right:10px; }
+
+  .modal-overlay{ position:fixed; inset:0; background:rgba(30,20,10,0.45); display:none; align-items:center; justify-content:center; z-index:400; }
+  .modal-overlay.open{ display:flex; }
+  .modal{ background:var(--white); border-radius:18px; padding:28px; width:480px; max-width:92vw; max-height:88vh; overflow-y:auto; }
+  .modal h3{ font-family:'Playfair Display', serif; margin-bottom:16px; }
+  .modal-close{ float:right; background:none; border:none; font-size:20px; }
+
+  .settings-form .field{ max-width:400px; }
+  .small-note{ font-size:12px; color:var(--ink-soft); margin-top:4px; }
+</style>
+</head>
+<body>
+
+<nav>
+  <div class="logo">i<span>Bake</span> Admin</div>
+  <div style="display:flex; gap:10px;">
+    <a href="/" target="_blank" style="font-size:13px; font-weight:600; color:var(--ink-soft); align-self:center;">View site ↗</a>
+    <button class="cart-btn" onclick="logout()">Log Out</button>
+  </div>
+</nav>
+
+<div class="admin-tabs">
+  <button class="active" data-tab="orders" onclick="switchTab('orders', this)">Orders</button>
+  <button data-tab="menu" onclick="switchTab('menu', this)">Menu Items</button>
+  <button data-tab="settings" onclick="switchTab('settings', this)">Settings</button>
+</div>
+
+<!-- ORDERS -->
+<div class="admin-panel active" id="panel-orders">
+  <div class="panel-head"><h2>Orders</h2></div>
+  <table>
+    <thead><tr><th>Ref</th><th>Customer</th><th>Items</th><th>Total</th><th>Screenshot</th><th>Status</th><th>Placed</th></tr></thead>
+    <tbody id="ordersBody"></tbody>
+  </table>
+</div>
+
+<!-- MENU -->
+<div class="admin-panel" id="panel-menu">
+  <div class="panel-head">
+    <h2>Menu Items</h2>
+    <button class="add-btn" onclick="openItemModal()">+ Add Item</button>
+  </div>
+  <table>
+    <thead><tr><th>Image</th><th>Name</th><th>Category</th><th>Price</th><th>Available</th><th></th></tr></thead>
+    <tbody id="menuBody"></tbody>
+  </table>
+</div>
+
+<!-- SETTINGS -->
+<div class="admin-panel" id="panel-settings">
+  <div class="panel-head"><h2>Settings</h2></div>
+  <div class="co-summary settings-form" style="background:var(--white); border-radius:14px; border:1px solid var(--line); padding:24px; max-width:500px;">
+    <div class="field"><label>Bakery Name</label><input type="text" id="set_bakery_name"></div>
+    <div class="field"><label>WhatsApp Number (with country code, no +)</label><input type="text" id="set_whatsapp_number"></div>
+    <div class="field"><label>UPI ID</label><input type="text" id="set_upi_id"></div>
+    <button class="btn btn-pay" style="max-width:200px;" onclick="saveSettings()">Save Settings</button>
+    <div class="small-note" id="settingsSaved" style="display:none; color:#237a3c; font-weight:600;">Saved!</div>
+  </div>
+
+  <div class="co-summary settings-form" style="background:var(--white); border-radius:14px; border:1px solid var(--line); padding:24px; max-width:500px; margin-top:24px;">
+    <h3 style="font-family:'Playfair Display', serif; margin-bottom:14px;">Change Password</h3>
+    <div class="field"><label>Current Password</label><input type="password" id="curPass"></div>
+    <div class="field"><label>New Password</label><input type="password" id="newPass"></div>
+    <button class="btn btn-pay" style="max-width:200px;" onclick="changePassword()">Update Password</button>
+    <div class="error-msg" id="passMsg"></div>
+  </div>
+</div>
+
+<!-- Add/Edit item modal -->
+<div class="modal-overlay" id="itemModal">
+  <div class="modal">
+    <button class="modal-close" onclick="closeItemModal()">✕</button>
+    <h3 id="modalTitle">Add Item</h3>
+    <form id="itemForm">
+      <input type="hidden" id="itemId">
+      <div class="field"><label>Name</label><input type="text" id="itemName" required></div>
+      <div class="field"><label>Description</label><textarea id="itemDesc"></textarea></div>
+      <div class="field"><label>Price (₹)</label><input type="number" step="0.01" id="itemPrice" required></div>
+      <div class="field"><label>Category</label><input type="text" id="itemCategory" required placeholder="e.g. Birthday, Wedding & Occasion"></div>
+      <div class="field"><label>Image</label><input type="file" id="itemImage" accept="image/*"></div>
+      <div class="field">
+        <label><input type="checkbox" id="itemAvailable" checked style="width:auto; margin-right:6px;">Available on menu</label>
+      </div>
+      <button type="submit" class="btn btn-pay">Save Item</button>
+    </form>
+  </div>
+</div>
+
+<script src="/js/admin.js"></script>
+</body>
+</html>

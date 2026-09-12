@@ -1,0 +1,165 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Checkout — iBake</title>
+<link rel="stylesheet" href="/css/styles.css">
+</head>
+<body>
+
+<nav>
+  <div class="logo">i<span>Bake</span></div>
+  <a href="/" style="font-size:13.5px; font-weight:600; color:var(--ink-soft);">← Back to menu</a>
+</nav>
+
+<div id="checkoutView" class="checkout-wrap">
+  <div>
+    <h2>Order Summary</h2>
+    <div class="co-summary" id="orderSummary"></div>
+
+    <div class="qr-box">
+      <img class="qr" src="/images/qr.png" alt="UPI payment QR code">
+      <div style="font-weight:700;">Scan with any UPI app</div>
+      <div id="upiIdText" style="color:var(--mustard-deep); font-weight:600; margin-top:4px;"></div>
+      <div style="font-size:12px; color:var(--ink-soft); margin-top:8px;">Pay the total shown above, then upload your screenshot →</div>
+    </div>
+  </div>
+
+  <div>
+    <h2>Delivery Details</h2>
+    <form id="orderForm">
+      <div class="field">
+        <label>Your Name</label>
+        <input type="text" id="custName" required>
+      </div>
+      <div class="field">
+        <label>Phone Number</label>
+        <input type="tel" id="custPhone" required>
+      </div>
+      <div class="field">
+        <label>Delivery Address</label>
+        <textarea id="custAddress" required></textarea>
+      </div>
+
+      <div class="upload-box" onclick="document.getElementById('screenshotInput').click()">
+        <div style="font-size:22px;">📤</div>
+        <b>Upload payment screenshot</b>
+        <span>PNG or JPG, up to 5MB</span>
+        <input type="file" id="screenshotInput" accept="image/*" required>
+      </div>
+      <div class="preview-thumb" id="previewThumb"><img id="previewImg" src="" alt="preview"></div>
+
+      <button type="submit" class="btn btn-pay" style="margin-top:20px;">Submit Order</button>
+      <div class="error-msg" id="errorMsg"></div>
+    </form>
+  </div>
+</div>
+
+<div id="confirmView" class="confirm-box">
+  <div class="icon">🎉</div>
+  <h2>Order received!</h2>
+  <p>Your order reference is <b id="orderRefText"></b>.<br>We'll confirm on WhatsApp once your payment is verified.</p>
+  <a href="/" class="btn btn-pay" style="max-width:220px; margin:24px auto 0; display:flex;">Back to Menu</a>
+</div>
+
+<script>
+  const CART = JSON.parse(localStorage.getItem('ibake_cart') || '{}');
+  let MENU = [];
+  let SETTINGS = {};
+
+  async function init(){
+    if (Object.keys(CART).length === 0) {
+      window.location.href = '/';
+      return;
+    }
+    [SETTINGS, MENU] = await Promise.all([
+      fetch('/api/settings').then(r => r.json()),
+      fetch('/api/menu').then(r => r.json())
+    ]);
+    renderSummary();
+    document.getElementById('upiIdText').textContent = SETTINGS.upi_id || '';
+  }
+
+  function money(n){
+    const symbol = SETTINGS.currency_symbol || '\u20b9';
+    return symbol + Number(n).toLocaleString('en-IN');
+  }
+
+  function getLines(){
+    return Object.entries(CART).map(([id, qty]) => {
+      const item = MENU.find(m => m.id == id);
+      return item ? { ...item, qty } : null;
+    }).filter(Boolean);
+  }
+
+  function renderSummary(){
+    const lines = getLines();
+    const wrap = document.getElementById('orderSummary');
+    const total = lines.reduce((s, l) => s + l.price * l.qty, 0);
+    wrap.innerHTML = lines.map(l => `
+      <div class="co-line"><span>${l.name} × ${l.qty}</span><span>${money(l.price * l.qty)}</span></div>
+    `).join('') + `<div class="co-total"><span>Total</span><span>${money(total)}</span></div>`;
+    wrap.dataset.total = total;
+  }
+
+  document.getElementById('screenshotInput').addEventListener('change', (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (ev) => {
+      document.getElementById('previewImg').src = ev.target.result;
+      document.getElementById('previewThumb').style.display = 'block';
+    };
+    reader.readAsDataURL(file);
+  });
+
+  document.getElementById('orderForm').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const errorMsg = document.getElementById('errorMsg');
+    errorMsg.style.display = 'none';
+
+    const file = document.getElementById('screenshotInput').files[0];
+    if (!file) {
+      errorMsg.textContent = 'Please upload your payment screenshot.';
+      errorMsg.style.display = 'block';
+      return;
+    }
+
+    const lines = getLines();
+    const total = document.getElementById('orderSummary').dataset.total;
+    const itemsPayload = lines.map(l => ({ name: l.name, price: l.price, qty: l.qty }));
+
+    const formData = new FormData();
+    formData.append('customer_name', document.getElementById('custName').value);
+    formData.append('customer_phone', document.getElementById('custPhone').value);
+    formData.append('customer_address', document.getElementById('custAddress').value);
+    formData.append('items', JSON.stringify(itemsPayload));
+    formData.append('total', total);
+    formData.append('screenshot', file);
+
+    const submitBtn = e.target.querySelector('button[type="submit"]');
+    submitBtn.disabled = true;
+    submitBtn.textContent = 'Submitting…';
+
+    try {
+      const res = await fetch('/api/orders', { method: 'POST', body: formData });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Something went wrong.');
+
+      localStorage.removeItem('ibake_cart');
+      document.getElementById('checkoutView').style.display = 'none';
+      document.getElementById('confirmView').style.display = 'block';
+      document.getElementById('orderRefText').textContent = data.order_ref;
+    } catch (err) {
+      errorMsg.textContent = err.message;
+      errorMsg.style.display = 'block';
+      submitBtn.disabled = false;
+      submitBtn.textContent = 'Submit Order';
+    }
+  });
+
+  init();
+</script>
+</body>
+</html>
