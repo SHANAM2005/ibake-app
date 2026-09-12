@@ -8,6 +8,11 @@ function saveCart(){
   renderCartCount();
 }
 
+function imageUrl(image){
+  if (!image) return 'https://placehold.co/400x300?text=iBake';
+  return image.startsWith('http') ? image : `/images/${image}`;
+}
+
 function money(n){
   const symbol = (SETTINGS.currency_symbol) || '\u20b9';
   return symbol + Number(n).toLocaleString('en-IN');
@@ -15,10 +20,19 @@ function money(n){
 
 // ---------- Load data ----------
 async function loadData(){
-  const [settingsRes, menuRes] = await Promise.all([
-    fetch('/api/settings').then(r => r.json()),
-    fetch('/api/menu').then(r => r.json())
-  ]);
+  let settingsRes, menuRes;
+  try {
+    [settingsRes, menuRes] = await Promise.all([
+      fetch('/api/settings').then(r => r.json()),
+      fetch('/api/menu').then(r => r.json())
+    ]);
+    if (!Array.isArray(menuRes)) throw new Error(menuRes.error || 'Could not load the menu.');
+  } catch (err) {
+    document.getElementById('menuSection').innerHTML =
+      `<p style="text-align:center; color:var(--ink-soft); padding:40px 0;">Sorry, the menu couldn't be loaded right now. Please refresh, or contact us on WhatsApp.</p>`;
+    console.error('Failed to load menu/settings:', err);
+    return;
+  }
   SETTINGS = settingsRes;
   MENU = menuRes;
 
@@ -75,7 +89,7 @@ function renderMenu(filterCat){
 
 function renderItemCard(item){
   const qty = CART[item.id] || 0;
-  const imgSrc = item.image ? `/images/${item.image}` : 'https://placehold.co/400x300?text=iBake';
+  const imgSrc = imageUrl(item.image);
   return `
     <div class="item-card">
       <div class="thumb"><img src="${imgSrc}" alt="${item.name}" loading="lazy"></div>
@@ -156,7 +170,7 @@ function renderCartDrawer(){
   footer.style.display = 'block';
   itemsWrap.innerHTML = lines.map(line => `
     <div class="cart-item">
-      <img src="${line.image ? '/images/' + line.image : 'https://placehold.co/60x60'}" alt="${line.name}">
+      <img src="${imageUrl(line.image)}" alt="${line.name}">
       <div class="info">
         <h5>${line.name}</h5>
         <div class="price">${money(line.price)} × ${line.qty} = ${money(line.price * line.qty)}</div>

@@ -1,8 +1,10 @@
-// Seeds the menu with placeholder items + placeholder prices.
+// Seeds Supabase with placeholder menu items, a default admin user, and default settings.
 // Run once with: npm run seed
-// Client can edit everything (name, price, description, image, availability) from /admin afterwards.
+// Safe to re-run \u2014 it skips seeding anything that already has rows.
 
-const db = require('./db');
+require('dotenv').config();
+const bcrypt = require('bcryptjs');
+const { supabase } = require('./db');
 
 const items = [
   { name: 'Storybook Teacher\u2019s Day Cake', category: 'Theme Cakes', description: 'Fondant book-and-quill design, customizable message.', image: 'teacher-cake.jpg' },
@@ -19,21 +21,61 @@ const items = [
   { name: 'Rainbow Character Birthday Cake', category: 'Birthday', description: 'Playful fondant character toppers with rainbow arch.', image: 'rainbow-birthday.jpg' },
 ];
 
-const insert = db.prepare(`
-  INSERT INTO menu_items (name, description, price, category, image, is_available, sort_order)
-  VALUES (@name, @description, @price, @category, @image, 1, @sort_order)
-`);
-
-const existing = db.prepare('SELECT COUNT(*) as c FROM menu_items').get().c;
-if (existing > 0) {
-  console.log('[seed] menu_items already has data \u2014 skipping seed to avoid duplicates.');
-  console.log('[seed] Delete ibake.db and re-run "npm run seed" if you want to reseed from scratch.');
-  process.exit(0);
+async function seedMenu() {
+  const { count, error: countErr } = await supabase.from('menu_items').select('*', { count: 'exact', head: true });
+  if (countErr) throw countErr;
+  if (count > 0) {
+    console.log('[seed] menu_items already has data \u2014 skipping to avoid duplicates.');
+    return;
+  }
+  const rows = items.map((item, i) => ({ ...item, price: 999, sort_order: i, is_available: true }));
+  const { error } = await supabase.from('menu_items').insert(rows);
+  if (error) throw error;
+  console.log(`[seed] Inserted ${items.length} placeholder menu items with price \u20b9999 (edit real prices in /admin).`);
 }
 
-const insertMany = db.transaction((rows) => {
-  rows.forEach((row, i) => insert.run({ ...row, price: 999, sort_order: i }));
-});
+async function seedAdmin() {
+  const { count, error: countErr } = await supabase.from('admin_users').select('*', { count: 'exact', head: true });
+  if (countErr) throw countErr;
+  if (count > 0) {
+    console.log('[seed] admin_users already has an account \u2014 skipping.');
+    return;
+  }
+  const username = process.env.ADMIN_USERNAME || 'admin';
+  const password = process.env.ADMIN_PASSWORD || 'ibake2026';
+  const password_hash = bcrypt.hashSync(password, 10);
+  const { error } = await supabase.from('admin_users').insert({ username, password_hash });
+  if (error) throw error;
+  console.log(`[seed] Created default admin user "${username}" \u2014 change the password after first login.`);
+}
 
-insertMany(items);
-console.log(`[seed] Inserted ${items.length} placeholder menu items with price \u20b9999 (edit real prices in /admin).`);
+async function seedSettings() {
+  const { count, error: countErr } = await supabase.from('settings').select('*', { count: 'exact', head: true });
+  if (countErr) throw countErr;
+  if (count > 0) {
+    console.log('[seed] settings already populated \u2014 skipping.');
+    return;
+  }
+  const defaults = [
+    { key: 'bakery_name', value: 'iBake' },
+    { key: 'whatsapp_number', value: '919596459797' },
+    { key: 'upi_id', value: 'ibake@upi' },
+    { key: 'currency_symbol', value: '\u20b9' }
+  ];
+  const { error } = await supabase.from('settings').insert(defaults);
+  if (error) throw error;
+  console.log('[seed] Inserted default settings.');
+}
+
+(async () => {
+  try {
+    await seedAdmin();
+    await seedSettings();
+    await seedMenu();
+    console.log('\n[seed] Done.');
+    process.exit(0);
+  } catch (err) {
+    console.error('[seed] Failed:', err.message);
+    process.exit(1);
+  }
+})();

@@ -1,3 +1,8 @@
+function imageUrl(image){
+  if (!image) return 'https://placehold.co/44x44';
+  return image.startsWith('http') ? image : `/images/${image}`;
+}
+
 // ---------- Auth guard ----------
 async function checkAuth(){
   const res = await fetch('/api/admin/me');
@@ -70,7 +75,7 @@ async function loadMenu(){
   }
   tbody.innerHTML = MENU_CACHE.map(item => `
     <tr>
-      <td><img class="thumb-sm" src="${item.image ? '/images/' + item.image : 'https://placehold.co/44x44'}"></td>
+      <td><img class="thumb-sm" src="${imageUrl(item.image)}"></td>
       <td><b>${item.name}</b><br><span style="color:var(--ink-soft); font-size:11.5px;">${item.description || ''}</span></td>
       <td>${item.category}</td>
       <td>₹${item.price}</td>
